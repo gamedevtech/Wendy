@@ -85,12 +85,9 @@ enum AttributeType
 class Attribute
 {
   friend class Program;
+  friend class VertexArray;
   friend class RenderContext;
 public:
-  /*! Binds this attribute to the specified stride and offset of the
-   *  current vertex buffer.
-   */
-  void bind(size_t stride, size_t offset);
   /*! @return @c true if the name of this attribute matches the specified
    *  string, or @c false otherwise.
    */
@@ -272,7 +269,6 @@ private:
   bool retrieveUniforms();
   bool retrieveAttributes();
   void bind();
-  void unbind();
   Program& operator = (const Program&) = delete;
   bool isValid() const;
   String infoLog() const;
@@ -331,6 +327,34 @@ private:
   std::vector<std::pair<String, SamplerType>> samplers;
   std::vector<std::pair<String, UniformType>> uniforms;
   std::vector<std::pair<String, AttributeType>> attributes;
+};
+
+class VertexArray
+{
+public:
+  static VertexArray* create(RenderContext& context,
+                             const Program& program,
+                             const VertexBuffer& vertexBuffer,
+                             const VertexFormat& format);
+  static VertexArray* create(RenderContext& context,
+                             const Program& program,
+                             const IndexBuffer& indexBuffer,
+                             const VertexBuffer& vertexBuffer,
+                             const VertexFormat& format);
+private:
+  VertexArray();
+  VertexArray(const VertexArray&) = delete;
+  bool init(RenderContext& context,
+            const Program& program,
+            const VertexBuffer& vertexBuffer,
+            const VertexFormat& format);
+  bool init(RenderContext& context,
+            const Program& program,
+            const IndexBuffer& indexBuffer,
+            const VertexBuffer& vertexBuffer,
+            const VertexFormat& format);
+  VertexArray& operator = (const VertexArray&) = delete;
+  uint m_arrayID;
 };
 
 } /*namespace wendy*/

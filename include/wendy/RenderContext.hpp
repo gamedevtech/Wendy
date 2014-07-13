@@ -262,7 +262,7 @@ public:
   RenderStats();
   void addFrame();
   void addStateChange();
-  void addPrimitives(PrimitiveType type, uint vertexCount);
+  void addPrimitives(PrimitiveMode mode, uint vertexCount);
   void addTexture(size_t size);
   void removeTexture(size_t size);
   void addVertexBuffer(size_t size);
@@ -432,7 +432,8 @@ public:
    *  the current GLSL program.
    *  @pre A GLSL program must be set before calling this method.
    */
-  void render(PrimitiveType type, uint start, uint count, uint base = 0);
+  void render(PrimitiveMode mode, IndexType type,
+              uint start, uint count, uint base = 0);
   /*! Allocates a range of temporary vertices of the specified format.
    *  @param[in] count The number of vertices to allocate.
    *  @param[in] format The format of vertices to allocate.
@@ -441,7 +442,7 @@ public:
    *  @remarks The allocated vertex range is only valid until the end of the
    *  current frame.
    */
-  VertexRange allocateVertices(uint count, const VertexFormat& format);
+  BufferRange allocateVertices(uint count, size_t size);
   /*! Reserves the specified sampler uniform signature as shared.
    */
   void createSharedSampler(const char* name, SamplerType type, int ID);
@@ -507,12 +508,7 @@ public:
    *  the current program.
    */
   void setCurrentProgram(Program* newProgram);
-  /*! Sets the current vertex buffer.
-   */
-  void setCurrentVertexBuffer(VertexBuffer* newVertexBuffer);
-  /*! Sets the current index buffer.
-   */
-  void setCurrentIndexBuffer(IndexBuffer* newIndexBuffer);
+  void setCurrentVertexArray(uint arrayID);
   /*! @note Unless you are Wendy, you probably don't need to call this.
    */
   void setCurrentTexture(Texture* newTexture);
@@ -552,11 +548,6 @@ private:
   void forceState(const RenderState& newState);
   RenderContext& operator = (const RenderContext&) = delete;
   void onFrame();
-  struct Slot
-  {
-    Ref<VertexBuffer> buffer;
-    uint available;
-  };
   class SharedSampler;
   class SharedUniform;
   ResourceCache& m_cache;
@@ -567,21 +558,20 @@ private:
   int m_swapInterval;
   Recti m_scissorArea;
   Recti m_viewportArea;
-  bool m_dirtyBinding;
   bool m_dirtyState;
   bool m_cullingInverted;
   std::vector<Ref<Texture>> m_textureUnits;
   uint m_activeTextureUnit;
   RenderState m_currentState;
+  uint m_currentVertexArrayID;
   Ref<Program> m_currentProgram;
-  Ref<VertexBuffer> m_currentVertexBuffer;
-  Ref<IndexBuffer> m_currentIndexBuffer;
   Ref<Framebuffer> m_currentFramebuffer;
   Ref<SharedProgramState> m_currentSharedState;
   Ref<DefaultFramebuffer> m_defaultFramebuffer;
   std::vector<SharedSampler> m_samplers;
   std::vector<SharedUniform> m_uniforms;
-  std::vector<Slot> m_slots;
+  std::unique_ptr<Buffer> m_buffer;
+  size_t m_available;
   String m_declaration;
   RenderStats* m_stats;
 };

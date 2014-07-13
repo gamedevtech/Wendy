@@ -44,10 +44,10 @@ class ModelSection
 public:
   /*! Constructor.
    */
-  ModelSection(const IndexRange& range, Material* material);
+  ModelSection(const PrimitiveRange& range, Material* material);
   /*! @return The range of indices used by this geometry.
    */
-  const IndexRange& indexRange() const { return m_range; }
+  const PrimitiveRange& range() const { return m_range; }
   /*! @return The %render material used by this geometry.
    */
   Material* material() const { return m_material; }
@@ -55,7 +55,7 @@ public:
    */
   void setMaterial(Material* newMaterial);
 private:
-  IndexRange m_range;
+  PrimitiveRange m_range;
   Ref<Material> m_material;
 };
 
@@ -117,8 +117,8 @@ private:
   bool init(RenderContext& context, const Mesh& data, const MaterialMap& materials);
   Model& operator = (const Model&) = delete;
   std::vector<ModelSection> m_sections;
-  Ref<VertexBuffer> m_vertexBuffer;
-  Ref<IndexBuffer> m_indexBuffer;
+  std::unique_ptr<VertexBuffer> m_vertexBuffer;
+  std::unique_ptr<IndexBuffer> m_indexBuffer;
   Sphere m_boundingSphere;
   AABB m_boundingAABB;
 };

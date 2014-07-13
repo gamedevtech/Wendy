@@ -109,410 +109,196 @@ bool isColorAttachment(TextureFramebuffer::Attachment attachment)
 
 } /*namespace*/
 
-VertexBuffer::~VertexBuffer()
+Buffer::~Buffer()
 {
   if (m_bufferID)
     glDeleteBuffers(1, &m_bufferID);
 
   if (RenderStats* stats = m_context.stats())
-    stats->removeVertexBuffer(size());
+    stats->removeBuffer(m_size);
 }
 
-void VertexBuffer::discard()
+void Buffer::discard()
 {
-  m_context.setCurrentVertexBuffer(this);
+  m_context.setCurrentVertexArray(0);
 
-  glBufferData(GL_ARRAY_BUFFER,
-               m_count * m_format.size(),
-               nullptr,
-               convertToGL(m_usage));
+  glBindBuffer(m_target, m_bufferID);
+  glBufferData(m_target, m_size, nullptr, convertToGL(m_usage));
 
 #if WENDY_DEBUG
-  checkGL("Error during vertex buffer discard");
+  checkGL("Error during buffer discard");
 #endif
 }
 
-void VertexBuffer::copyFrom(const void* source, size_t sourceCount, size_t start)
+void Buffer::copyFrom(const void* source, size_t size, size_t offset)
 {
-  if (start + sourceCount > m_count)
+  if (offset + size > m_size)
   {
-    logError("Too many vertices submitted to vertex buffer");
+    logError("Too much data submitted to buffer");
     return;
   }
 
-  m_context.setCurrentVertexBuffer(this);
+  m_context.setCurrentVertexArray(0);
 
-  const size_t size = m_format.size();
-  glBufferSubData(GL_ARRAY_BUFFER, start * size, sourceCount * size, source);
+  glBindBuffer(m_target, m_bufferID);
+  glBufferSubData(m_target, offset, size, source);
 
 #if WENDY_DEBUG
-  checkGL("Error during copy to vertex buffer");
+  checkGL("Error during copy to buffer");
 #endif
 }
 
-void VertexBuffer::copyTo(void* target, size_t targetCount, size_t start)
+void Buffer::copyTo(void* target, size_t size, size_t offset)
 {
-  if (start + targetCount > m_count)
+  if (offset + size > m_size)
   {
-    logError("Too many vertices requested from vertex buffer");
+    logError("Too much data requested from buffer");
     return;
   }
 
-  m_context.setCurrentVertexBuffer(this);
+  m_context.setCurrentVertexArray(0);
 
-  const size_t size = m_format.size();
-  glGetBufferSubData(GL_ARRAY_BUFFER, start * size, targetCount * size, target);
+  glBindBuffer(m_target, m_bufferID);
+  glGetBufferSubData(m_target, offset, size, target);
 
 #if WENDY_DEBUG
-  checkGL("Error during copy from vertex buffer");
+  checkGL("Error during copy from buffer");
 #endif
 }
 
-Ref<VertexBuffer> VertexBuffer::create(RenderContext& context,
-                                       size_t count,
-                                       const VertexFormat& format,
-                                       BufferUsage usage)
-{
-  Ref<VertexBuffer> buffer(new VertexBuffer(context));
-  if (!buffer->init(format, count, usage))
-    return nullptr;
-
-  return buffer;
-}
-
-VertexBuffer::VertexBuffer(RenderContext& context):
+Buffer::Buffer(RenderContext& context, uint target):
   m_context(context),
+  m_target(target),
   m_bufferID(0),
   m_count(0),
   m_usage(USAGE_STATIC)
 {
 }
 
-bool VertexBuffer::init(const VertexFormat& format, size_t count, BufferUsage usage)
+bool Buffer::init(size_t size, BufferUsage usage)
 {
-  m_format = format;
   m_usage = usage;
-  m_count = count;
+  m_size = size;
+
+  m_context.setCurrentVertexArray(0);
 
   glGenBuffers(1, &m_bufferID);
+  glBindBuffer(m_target, m_bufferID);
+  glBufferData(m_target, m_size, nullptr, convertToGL(m_usage));
 
-  m_context.setCurrentVertexBuffer(this);
-
-  glBufferData(GL_ARRAY_BUFFER,
-               m_count * m_format.size(),
-               nullptr,
-               convertToGL(m_usage));
-
-  if (!checkGL("Error during creation of vertex buffer of format %s",
-               m_format.asString().c_str()))
-  {
-    m_context.setCurrentVertexBuffer(nullptr);
+  if (!checkGL("Error during creation of buffer")
     return false;
-  }
 
   if (RenderStats* stats = m_context.stats())
-    stats->addVertexBuffer(size());
+    stats->addBuffer(size());
 
   return true;
 }
 
-IndexBuffer::~IndexBuffer()
+VertexBuffer* VertexBuffer::create(RenderContext& context,
+                                   size_t size,
+                                   BufferUsage usage)
 {
-  if (m_bufferID)
-    glDeleteBuffers(1, &m_bufferID);
-
-  if (RenderStats* stats = m_context.stats())
-    stats->removeIndexBuffer(size());
-}
-
-void IndexBuffer::copyFrom(const void* source, size_t sourceCount, size_t start)
-{
-  if (start + sourceCount > m_count)
-  {
-    logError("Too many indices submitted to index buffer");
-    return;
-  }
-
-  m_context.setCurrentIndexBuffer(this);
-
-  const size_t size = typeSize(m_type);
-  glBufferSubData(GL_ELEMENT_ARRAY_BUFFER, start * size, sourceCount * size, source);
-
-#if WENDY_DEBUG
-  checkGL("Error during copy to index buffer");
-#endif
-}
-
-void IndexBuffer::copyTo(void* target, size_t targetCount, size_t start)
-{
-  if (start + targetCount > m_count)
-  {
-    logError("Too many indices requested from index buffer");
-    return;
-  }
-
-  m_context.setCurrentIndexBuffer(this);
-
-  const size_t size = typeSize(m_type);
-  glGetBufferSubData(GL_ELEMENT_ARRAY_BUFFER, start * size, targetCount * size, target);
-
-#if WENDY_DEBUG
-  checkGL("Error during copy from index buffer");
-#endif
-}
-
-size_t IndexBuffer::size() const
-{
-  return m_count * typeSize(m_type);
-}
-
-Ref<IndexBuffer> IndexBuffer::create(RenderContext& context,
-                                     size_t count,
-                                     IndexBufferType type,
-                                     BufferUsage usage)
-{
-  Ref<IndexBuffer> buffer(new IndexBuffer(context));
-  if (!buffer->init(count, type, usage))
+  std::unique_ptr<VertexBuffer> buffer(new VertexBuffer(context));
+  if (!buffer->init(format, count, usage))
     return nullptr;
 
-  return buffer;
+  return buffer.release();
 }
 
-size_t IndexBuffer::typeSize(IndexBufferType type)
+VertexBuffer::VertexBuffer(RenderContext& context):
+  Buffer(context, GL_ARRAY_BUFFER)
+{
+}
+
+size_t IndexBuffer::typeSize(IndexType type)
 {
   switch (type)
   {
     case INDEX_UINT8:
-      return sizeof(GLubyte);
+      return 1;
     case INDEX_UINT16:
-      return sizeof(GLushort);
+      return 2;
     case INDEX_UINT32:
-      return sizeof(GLuint);
+      return 4;
+    default:
+      return 0;
   }
+}
 
-  panic("Invalid index buffer type %u", type);
+IndexBuffer* IndexBuffer::create(RenderContext& context,
+                                 size_t size,
+                                 BufferUsage usage)
+{
+  std::unique_ptr<IndexBuffer> buffer(new IndexBuffer(context));
+  if (!buffer->init(format, count, usage))
+    return nullptr;
+
+  return buffer.release();
 }
 
 IndexBuffer::IndexBuffer(RenderContext& context):
-  m_context(context),
-  m_type(INDEX_UINT8),
-  m_usage(USAGE_STATIC),
-  m_bufferID(0),
-  m_count(0)
+  Buffer(context, GL_ELEMENT_ARRAY_BUFFER)
 {
 }
 
-bool IndexBuffer::init(size_t count, IndexBufferType type, BufferUsage usage)
-{
-  m_type = type;
-  m_usage = usage;
-  m_count = count;
-
-  glGenBuffers(1, &m_bufferID);
-
-  m_context.setCurrentIndexBuffer(this);
-
-  glBufferData(GL_ELEMENT_ARRAY_BUFFER,
-               m_count * typeSize(m_type),
-               nullptr,
-               convertToGL(m_usage));
-
-  if (!checkGL("Error during creation of index buffer of element size %u",
-               (uint) typeSize(m_type)))
-  {
-    m_context.setCurrentIndexBuffer(nullptr);
-    return false;
-  }
-
-  if (RenderStats* stats = m_context.stats())
-    stats->addIndexBuffer(size());
-
-  return true;
-}
-
-VertexRange::VertexRange():
-  m_buffer(nullptr),
-  m_start(0),
-  m_count(0)
+BufferRange::BufferRange():
+  buffer(nullptr),
+  size(0)
+  offset(0),
 {
 }
 
-VertexRange::VertexRange(VertexBuffer& vertexBuffer):
-  m_buffer(&vertexBuffer),
-  m_start(0),
-  m_count(0)
+BufferRange::BufferRange(Buffer& buffer):
+  buffer(&buffer),
+  size(0)
+  offset(0),
 {
-  m_count = m_buffer->count();
+  size = buffer->size();
 }
 
-VertexRange::VertexRange(VertexBuffer& vertexBuffer,
-                         size_t start,
-                         size_t count):
-  m_buffer(&vertexBuffer),
-  m_start(start),
-  m_count(count)
+BufferRange::BufferRange(Buffer& buffer,
+                         size_t size,
+                         size_t offset):
+  buffer(&buffer),
+  size(size)
+  offset(offset),
 {
-  assert(m_buffer->count() >= m_start + m_count);
+  assert(buffer->size() >= offset + size);
 }
 
-void VertexRange::copyFrom(const void* source)
+void BufferRange::copyFrom(const void* source)
 {
-  if (!m_buffer)
-    return;
-
-  m_buffer->copyFrom(source, m_count, m_start);
+  assert(buffer);
+  buffer->copyFrom(source, size, offset);
 }
 
-void VertexRange::copyTo(void* target)
+void BufferRange::copyTo(void* target)
 {
-  if (!m_buffer)
-    return;
-
-  m_buffer->copyTo(target, m_count, m_start);
-}
-
-IndexRange::IndexRange():
-  m_buffer(nullptr),
-  m_start(0),
-  m_count(0)
-{
-}
-
-IndexRange::IndexRange(IndexBuffer& buffer):
-  m_buffer(&buffer),
-  m_start(0),
-  m_count(0)
-{
-  m_count = m_buffer->count();
-}
-
-IndexRange::IndexRange(IndexBuffer& buffer,
-                       size_t start,
-                       size_t count):
-  m_buffer(&buffer),
-  m_start(start),
-  m_count(count)
-{
-  assert(m_buffer->count() >= m_start + m_count);
-}
-
-void IndexRange::copyFrom(const void* source)
-{
-  if (!m_buffer)
-    return;
-
-  m_buffer->copyFrom(source, m_count, m_start);
-}
-
-void IndexRange::copyTo(void* target)
-{
-  if (!m_buffer)
-    return;
-
-  m_buffer->copyTo(target, m_count, m_start);
+  assert(buffer);
+  buffer->copyTo(target, size, offset);
 }
 
 PrimitiveRange::PrimitiveRange():
-  m_type(TRIANGLE_LIST),
-  m_vertexBuffer(nullptr),
-  m_indexBuffer(nullptr),
-  m_start(0),
-  m_count(0),
-  m_base(0)
+  mode(TRIANGLE_LIST),
+  type(NO_INDICES),
+  start(0),
+  count(0),
+  base(0)
 {
 }
 
-PrimitiveRange::PrimitiveRange(PrimitiveType type,
-                               VertexBuffer& vertexBuffer):
-  m_type(type),
-  m_vertexBuffer(&vertexBuffer),
-  m_indexBuffer(nullptr),
-  m_start(0),
-  m_count(0),
-  m_base(0)
-{
-  m_count = vertexBuffer.count();
-}
-
-PrimitiveRange::PrimitiveRange(PrimitiveType type,
-                               const VertexRange& vertexRange):
-  m_type(type),
-  m_vertexBuffer(nullptr),
-  m_indexBuffer(nullptr),
-  m_start(0),
-  m_count(0),
-  m_base(0)
-{
-  m_vertexBuffer = vertexRange.vertexBuffer();
-  m_start = vertexRange.start();
-  m_count = vertexRange.count();
-}
-
-PrimitiveRange::PrimitiveRange(PrimitiveType type,
-                               VertexBuffer& vertexBuffer,
-                               IndexBuffer& indexBuffer,
-                               size_t base):
-  m_type(type),
-  m_vertexBuffer(&vertexBuffer),
-  m_indexBuffer(&indexBuffer),
-  m_start(0),
-  m_count(0),
-  m_base(base)
-{
-  m_count = indexBuffer.count();
-}
-
-PrimitiveRange::PrimitiveRange(PrimitiveType type,
-                               VertexBuffer& vertexBuffer,
-                               const IndexRange& indexRange,
-                               size_t base):
-  m_type(type),
-  m_vertexBuffer(&vertexBuffer),
-  m_indexBuffer(nullptr),
-  m_start(0),
-  m_count(0),
-  m_base(base)
-{
-  m_indexBuffer = indexRange.indexBuffer();
-  m_start = indexRange.start();
-  m_count = indexRange.count();
-}
-
-PrimitiveRange::PrimitiveRange(PrimitiveType type,
-                               VertexBuffer& vertexBuffer,
+PrimitiveRange::PrimitiveRange(PrimitiveMode mode,
+                               IndexType type,
                                size_t start,
                                size_t count,
                                size_t base):
-  m_type(type),
-  m_vertexBuffer(&vertexBuffer),
-  m_indexBuffer(nullptr),
-  m_start(start),
-  m_count(count),
-  m_base(base)
+  mode(mode),
+  type(type),
+  start(start),
+  count(count),
+  base(base)
 {
-}
-
-PrimitiveRange::PrimitiveRange(PrimitiveType type,
-                               VertexBuffer& vertexBuffer,
-                               IndexBuffer& indexBuffer,
-                               size_t start,
-                               size_t count,
-                               size_t base):
-  m_type(type),
-  m_vertexBuffer(&vertexBuffer),
-  m_indexBuffer(&indexBuffer),
-  m_start(start),
-  m_count(count),
-  m_base(base)
-{
-}
-
-bool PrimitiveRange::isEmpty() const
-{
-  if (m_vertexBuffer == nullptr)
-    return true;
-
-  return m_count == 0;
 }
 
 Framebuffer::~Framebuffer()

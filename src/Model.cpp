@@ -51,11 +51,21 @@ namespace wendy
 namespace
 {
 
+IndexType smallestIndexType(uint indexCount)
+{
+  if (indexCount <= (1 << 8))
+    return INDEX_UINT8;
+  else if (indexCount <= (1 << 16))
+    return INDEX_UINT16;
+  else
+    return INDEX_UINT32;
+}
+
 const uint MODEL_XML_VERSION = 3;
 
 } /*namespace*/
 
-ModelSection::ModelSection(const IndexRange& range,
+ModelSection::ModelSection(const PrimitiveRange& range,
                            Material* material):
   m_range(range),
   m_material(material)
@@ -72,14 +82,13 @@ void Model::enqueue(RenderQueue& queue, const Camera& camera, const Transform3& 
   for (const ModelSection& s : m_sections)
   {
     Material* material = s.material();
-    if (!s.material())
+    if (!material)
       continue;
 
-    PrimitiveRange range(TRIANGLE_LIST, *m_vertexBuffer, s.indexRange());
+    const float depth = camera.normalizedDepth(transform.position +
+                                               m_boundingSphere.center);
 
-    float depth = camera.normalizedDepth(transform.position + m_boundingSphere.center);
-
-    queue.createOperations(transform, range, *material, depth);
+    queue.createOperations(transform, s.range(), *material, depth);
   }
 }
 
@@ -126,29 +135,22 @@ bool Model::init(RenderContext& context, const Mesh& data, const MaterialMap& ma
     }
   }
 
-  m_vertexBuffer = VertexBuffer::create(context,
-                                        data.vertices.size(),
-                                        Vertex3fn2ft3fv::format,
-                                        USAGE_STATIC);
+  const size_t vertexBufferSize = data.vertices.size() *
+                                  Vertex3fn2ft3fv::format.size();
+  m_vertexBuffer.reset(VertexBuffer::create(context,
+                                            vertexBufferSize,
+                                            USAGE_STATIC));
   if (!m_vertexBuffer)
     return false;
 
-  m_vertexBuffer->copyFrom(&data.vertices[0], data.vertices.size());
+  m_vertexBuffer->copyFrom(&data.vertices[0], vertexBufferSize);
 
   const size_t indexCount = data.triangleCount() * 3;
-
-  IndexBufferType indexType;
-  if (indexCount <= (1 << 8))
-    indexType = INDEX_UINT8;
-  else if (indexCount <= (1 << 16))
-    indexType = INDEX_UINT16;
-  else
-    indexType = INDEX_UINT32;
-
-  m_indexBuffer = IndexBuffer::create(context,
-                                      indexCount,
-                                      indexType,
-                                      USAGE_STATIC);
+  const IndexType indexType = smallestIndexType(indexCount);
+  const size_t indexSize = IndexBuffer::typeSize(indexType);
+  m_indexBuffer.reset(IndexBuffer::create(context,
+                                          indexSize * indexCount,
+                                          USAGE_STATIC));
   if (!m_indexBuffer)
     return false;
 
@@ -157,13 +159,13 @@ bool Model::init(RenderContext& context, const Mesh& data, const MaterialMap& ma
   for (const MeshSection& s : data.sections)
   {
     const size_t count = s.triangles.size() * 3;
-    IndexRange range(*m_indexBuffer, start, count);
+    BufferRange range(*m_indexBuffer, start * indexSize, count);
 
     m_sections.push_back(ModelSection(range, materials.find(s.materialName)->second));
 
     if (indexType == INDEX_UINT8)
     {
-      std::vector<uint8> indices(range.count());
+      std::vector<uint8> indices(range.count);
 
       size_t index = 0;
 
@@ -178,7 +180,7 @@ bool Model::init(RenderContext& context, const Mesh& data, const MaterialMap& ma
     }
     else if (indexType == INDEX_UINT16)
     {
-      std::vector<uint16> indices(range.count());
+      std::vector<uint16> indices(range.count);
 
       size_t index = 0;
 
@@ -193,7 +195,7 @@ bool Model::init(RenderContext& context, const Mesh& data, const MaterialMap& ma
     }
     else
     {
-      std::vector<uint32> indices(range.count());
+      std::vector<uint32> indices(range.count);
 
       size_t index = 0;
 

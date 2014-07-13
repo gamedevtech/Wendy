@@ -109,6 +109,7 @@ void Renderer::renderOperations(const RenderBucket& bucket)
     m_state->setModelMatrix(op.transform);
     op.state->apply();
 
+    m_context.setCurrentVertexArray(op.arrayID);
     m_context.render(op.range);
   }
 }
