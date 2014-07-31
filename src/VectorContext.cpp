@@ -34,6 +34,7 @@
 
 #include <GREG/greg.h>
 
+#include <nanovg.h>
 #define NANOVG_GL3_IMPLEMENTATION
 #include <nanovg_gl.h>
 
@@ -54,6 +55,7 @@ void VectorContext::beginFrame(uint width, uint height, float aspectRatio)
 void VectorContext::endFrame()
 {
   nvgEndFrame(m_handle);
+  m_context.invalidateStateCache();
 }
 
 void VectorContext::save()
@@ -86,12 +88,12 @@ void VectorContext::strokeWidth(float size)
   nvgStrokeWidth(m_handle, size);
 }
 
-void VectorContext::lineCap(NVGlineCap cap)
+void VectorContext::lineCap(uint cap)
 {
   nvgLineCap(m_handle, cap);
 }
 
-void VectorContext::lineJoin(NVGlineCap join)
+void VectorContext::lineJoin(uint join)
 {
   nvgLineJoin(m_handle, join);
 }
@@ -219,6 +221,7 @@ bool VectorContext::init()
     return false;
   }
 
+  m_context.invalidateStateCache();
   return true;
 }
 

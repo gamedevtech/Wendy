@@ -25,7 +25,7 @@
 
 #pragma once
 
-#include <nanovg.h>
+typedef struct NVGcontext NVGcontext;
 
 namespace wendy
 {
@@ -47,8 +47,8 @@ public:
   // fillPaint
   // miterLimit
   void strokeWidth(float size);
-  void lineCap(NVGlineCap cap);
-  void lineJoin(NVGlineCap join);
+  void lineCap(uint cap);
+  void lineJoin(uint join);
   void globalAlpha(float alpha);
   void resetTransform();
   // transform
